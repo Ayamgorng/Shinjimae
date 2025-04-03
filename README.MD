@@ -1,6 +1,6 @@
 # About Shinjimae Bot
 A Simple Whatsapp bot that can delete incoming messages if contains ```wa.me/settings``` automatically
-
+sebuah bot whasapp dengan fitur auto delete chat tiap 5 menit sekali,dan banyak fitur yang akan terus dikembangkan
 # Installing and Run
 1. ```git clone https://github.com/AzumiSensei/Shinjimae```
 2. ```npm install```
