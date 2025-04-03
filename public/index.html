@@ -1,32 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset='utf-8'>
-    <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>Bot Shinjimae</title>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <script type="text/javascript">
-        function ajax(){
-            let a = new XMLHttpRequest()
-
-            a.open("GET", "/count")
-            a.send(null)
-
-            a.onreadystatechange = function(){
-                if(a.readyState == 4 && a.status == 200){
-                    let result = a.responseText
-                    result = JSON.parse(result)
-                    document.getElementById("del").innerHTML = "Deleted Messages : "+result.count
-
-                    setTimeout("ajax()", 1000)
-                }
-            }
-        }
-
-        ajax()
-    </script>
+    <title>Shinjimae Bot Control</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .config-box { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
+        input[type="number"] { width: 100px; padding: 5px; }
+        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+    </style>
 </head>
 <body>
-    <p id="del">Deleted Messages : 0</p>
+    <h1>Shinjimae Bot Control Panel</h1>
+    <p id="status">Status: Connecting...</p>
+    <p id="count">Deleted Messages: 0</p>
+    
+    <div class="config-box">
+        <h2>Auto Delete Configuration</h2>
+        <p>Current Interval: <span id="currentInterval">5</span> minutes</p>
+        <input type="number" id="intervalInput" min="1" max="60" value="5">
+        <button onclick="updateInterval()">Update Interval</button>
+    </div>
+
+    <script>
+        function updateUI(data) {
+            document.getElementById('status').textContent = 
+                `Status: ${data.whatsapp} | Interval: ${data.interval} minutes`;
+            document.getElementById('count').textContent = 
+                `Deleted Messages: ${data.count}`;
+            document.getElementById('currentInterval').textContent = data.interval;
+        }
+
+        async function fetchData() {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                updateUI(data);
+            } catch (error) {
+                console.error('Error:', error);
+            }
+            setTimeout(fetchData, 2000);
+        }
+
+        async function updateInterval() {
+            const minutes = document.getElementById('intervalInput').value;
+            const response = await fetch('/config/interval', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ minutes })
+            });
+            alert(response.ok ? 'Interval updated!' : 'Error updating interval');
+        }
+
+        fetchData();
+    </script>
 </body>
 </html>
