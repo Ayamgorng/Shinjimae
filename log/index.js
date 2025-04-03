@@ -1,76 +1,63 @@
-import fs from "fs"
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+// Perbaiki error handling dan optimalkan operasi file
+import fs from "fs/promises" // <-- Gunakan promises API
+import { fileURLToPath } from 'url'
+import { dirname } from 'path'
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 
-export const newline = `
-`
+const CACHE_DIR = __dirname + "/../cache_log"
 
-export async function check(path){
-    let promise = new Promise((resolve) => {
-        fs.access(path, fs.constants.F_OK, (err) => {
-            if(err){
-                resolve(false)
-            }
-            else{
-                resolve(true)
-            }
-        })
-    })
-
-    return await promise
+// Helper function untuk pengecekan
+async function ensureDirExists() {
+  try {
+    await fs.access(CACHE_DIR, fs.constants.F_OK)
+  } catch {
+    await fs.mkdir(CACHE_DIR)
+  }
 }
 
-export async function writeLog(string){
-    let dir = __dirname+"/../cache_log"
-    let logfile = dir+"/log.txt"
-    let checkdir = await check(dir)
-    
-    if(!checkdir){
-        fs.mkdirSync(dir)
-    }
+export const newline = "\n"
 
-    let checkfile = await check(logfile)
-    if(!checkfile){
-        fs.writeFileSync(logfile, string)
-    }
-    else{
-        fs.appendFileSync(logfile, newline+string)
-    }
+export async function check(path) {
+  try {
+    await fs.access(path, fs.constants.F_OK)
+    return true
+  } catch {
+    return false
+  }
 }
 
-export async function writeCount(string){
-    let dir = __dirname+"/../cache_log"
-    let logfile = dir+"/count.txt"
-    let checkdir = await check(dir)
-    
-    if(!checkdir){
-        fs.mkdirSync(dir)
-    }
-    string =  ""+string
-    fs.writeFileSync(logfile, string)
+export async function writeLog(string) {
+  await ensureDirExists()
+  const logFile = `${CACHE_DIR}/log.txt`
+  
+  try {
+    await fs.appendFile(logFile, `${string}${newline}`)
+  } catch (error) {
+    console.error('Failed to write log:', error)
+  }
 }
 
-export async function readCount(){
-    let dir = __dirname+"/../cache_log"
-    let logfile = dir+"/count.txt"
-    let checkdir = await check(dir)
-    
-    if(!checkdir){
-        fs.mkdirSync(dir)
-    }
+export async function writeCount(count) {
+  await ensureDirExists()
+  const countFile = `${CACHE_DIR}/count.txt`
+  
+  try {
+    await fs.writeFile(countFile, String(count))
+  } catch (error) {
+    console.error('Failed to write count:', error)
+  }
+}
 
-    let checkFile = await check(logfile)
-
-    if(!checkFile){
-        return 0
-    }
-    else{
-        let file = fs.readFileSync(logfile)
-        file = Buffer.from(file).toString("utf-8")
-
-        return parseInt(file)
-    }
+export async function readCount() {
+  await ensureDirExists()
+  const countFile = `${CACHE_DIR}/count.txt`
+  
+  try {
+    const data = await fs.readFile(countFile, 'utf8')
+    return parseInt(data) || 0
+  } catch {
+    return 0
+  }
 }
