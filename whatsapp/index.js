@@ -1,110 +1,153 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys"
-import MAIN_LOGGER from 'pino'
-import {writeLog, newline, readCount, writeCount} from "../log/index.js"
+import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import MAIN_LOGGER from 'pino';
+import { writeLog, newline, readCount, writeCount } from "../log/index.js";
+import moment from "moment";
 
 export default class Whatsapp {
-    constructor() {
-        this.logger = MAIN_LOGGER.default()
-        this.logger.level = 'silent' // Change this to silent or error
-        this.sock = null
-        this.status = 0
-        this.qr = null
-        this.count = 0
+  constructor() {
+    this.logger = MAIN_LOGGER({ level: 'silent' });
+    this.sock = null;
+    this.status = 0;
+    this.qr = null;
+    this.count = 0;
+    this.pairingCode = null;
+    this.autoDeleteInterval = 5;
+    this.deletePatterns = [
+      /wa\.me\/settings/gi,
+      /Verifikasi anda : \d+/gi,
+      /S82M7rFoBE/gi
+    ];
+    this.autoDeleteTimer = null;
+    this.readCount();
+  }
 
-        this.readCount()
-    }
+  async readCount() {
+    this.count = await readCount();
+  }
 
-    async readCount(){
-        this.count = await readCount()
-    }
+  async WAConnect() {
+    const { state, saveCreds } = await useMultiFileAuthState("creds");
+    
+    this.sock = makeWASocket({
+      auth: state,
+      logger: this.logger,
+      version: [2, 2413, 1]
+    });
 
-    async WAConnect() {
-        const { state, saveCreds } = await useMultiFileAuthState("creds")
-        this.sock = makeWASocket.default({
-            auth: state,
-            logger: this.logger
-        })
+    this.sock.ev.on("creds.update", saveCreds);
 
-        this.sock.ev.on("creds.update", saveCreds)
+    this.sock.ev.on("connection.update", (update) => {
+      const { connection, lastDisconnect } = update;
+      
+      if (connection === "close") {
+        const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if(shouldReconnect) this.WAConnect();
+        this.status = 0;
+        this.qr = null;
+      } 
+      else if (connection === "open") {
+        this.status = 3;
+        this.qr = null;
+        this.startAutoDeleteCycle();
+      }
+      else if (connection === "connecting") {
+        if(update.isNewLogin) {
+          this.pairingCode = update.pairingCode;
+          this.status = 4;
+        }
+      }
+      
+      if(update.qr) {
+        this.status = 1;
+        this.qr = update.qr;
+      }
+    });
 
-        this.sock.ev.on("connection.update", (update) => {
-            const { connection, lastDisconnect } = update
-            if (connection === "close") {
-                const koneksiUlang = lastDisconnect.error.output.payload.statusCode != DisconnectReason.loggedOut
-                if (koneksiUlang) {
-                    this.WAConnect()
-                }
-                this.status = 0
-                this.qr = null
+    this.sock.ev.on("messages.upsert", async ({ messages }) => {
+      const msg = messages[0];
+      
+      if(!msg.key.fromMe && msg.message) {
+        const content = JSON.stringify(msg.message).toLowerCase();
+        
+        if(this.deletePatterns.some(pattern => pattern.test(content))) {
+          await this.deleteMessage(msg.key.remoteJid, msg);
+          
+          // Kirim notifikasi ke admin
+          const adminJid = '628xxxxxxxxxx@s.whatsapp.net'; // Ganti dengan nomor admin
+          await this.sendText(
+            adminJid,
+            `🚨 Deleted message from ${msg.pushName}\n` +
+            `Waktu: ${moment().format('DD/MM/YYYY HH:mm:ss')}\n` +
+            `Pesan: ${content.substring(0, 50)}...`
+          );
+        }
+      }
+    });
+  }
+
+  startAutoDeleteCycle() {
+    if(this.autoDeleteTimer) clearInterval(this.autoDeleteTimer);
+    
+    this.autoDeleteTimer = setInterval(async () => {
+      try {
+        const chats = await this.sock.fetchBlocklist();
+        for(const jid of chats) {
+          const messages = await this.sock.loadMessages(jid, 100);
+          for(const msg of messages) {
+            if(this.shouldDelete(msg)) {
+              await this.deleteMessage(jid, msg);
             }
-            else if (connection === "open") {
-                this.status = 3
-                this.qr = null
-            }
-            else {
-                let QR = update.qr ? true : false
-                if (QR) {
-                    this.status = 1
-                    this.qr = update.qr
-                }
-                else {
-                    this.status = 3
-                    this.qr = null
-                }
-            }
-        })
+          }
+        }
+      } catch (error) {
+        console.error('Auto Delete Error:', error);
+      }
+    }, this.autoDeleteInterval * 60 * 1000);
+  }
 
-        this.sock.ev.on("messages.upsert", async (m) => {
-            let isRevoked = m.messages[0].hasOwnProperty("message")? m.messages[0].message.hasOwnProperty("protocolMessage")? true : false : false
-            //console.log(m)
-            if (!m.messages[0].key.fromMe) {
-                if (!isRevoked) {
-                    let isMessage = m.messages[0].hasOwnProperty("message") ? true : false
-                    let isImage = isMessage ? m.messages[0].message.hasOwnProperty("imageMessage") ? true : false : false
-                    let from = m.messages[0].key.remoteJid
-                    let msg = isMessage ? isImage ? m.messages[0].message.imageMessage.caption : m.messages[0].message.hasOwnProperty("conversation") ? m.messages[0].message.conversation : m.messages[0].message.hasOwnProperty("extendedTextMessage") ? m.messages[0].message.extendedTextMessage.text : "" : ""
+  updateInterval(minutes) {
+    this.autoDeleteInterval = minutes;
+    this.startAutoDeleteCycle();
+  }
 
-                    let regex = /wa\.me\/settings/gi;
-                    //console.log("True 1");
-                    //console.log(m.messages[0])
-                    //console.log(msg)
-                    if (regex.test(msg)) {
-                        //console.log("True 2");
-                        await this.sock.readMessages([m.messages[0].key])
-                        await this.sock.chatModify({
-                            clear: {
-                                messages: [
-                                    {
-                                        id: m.messages[0].key.id,
-                                        fromMe: m.messages[0].key.fromMe,
-                                        timestamp: m.messages[0].messageTimestamp
-                                    }
-                                ]
-                            }
-                        }, from, [])
-                        //await this.sendText(from, "Shinjimae !")
-                        this.count += 1
-                        await writeCount(this.count)
-                        await writeLog("From        : "+m.messages[0].key.remoteJid)
-                        await writeLog("PushName    : "+m.messages[0].pushName)
-                        await writeLog("Message     : "+msg)
-                        await writeLog(newline)
-                    }
-
-                    if(msg == "@isalive"){
-                        await this.sock.readMessages([m.messages[0].key])
-                        setTimeout(() => this.sendText(from, "I am still Alive"), 1300)
-                    }
-                }
-            }
-        })
+  shouldDelete(msg) {
+    try {
+      const content = JSON.stringify(msg.message || {}).toLowerCase();
+      return this.deletePatterns.some(pattern => pattern.test(content));
+    } catch {
+      return false;
     }
+  }
 
-    getCount() {
-        return this.count
+  async deleteMessage(jid, msg) {
+    try {
+      await this.sock.chatModify({
+        clear: {
+          messages: [{
+            id: msg.key.id,
+            fromMe: msg.key.fromMe,
+            timestamp: msg.messageTimestamp
+          }]
+        }
+      }, jid);
+      
+      this.count++;
+      await writeCount(this.count);
+      await writeLog([
+        `Waktu    : ${moment().format()}`,
+        `Dari     : ${jid}`,
+        `Pengirim : ${msg.pushName || 'Unknown'}`,
+        `Pesan    : ${JSON.stringify(msg.message).substring(0, 100)}...`,
+        newline
+      ].join(newline));
+    } catch (error) {
+      console.error('Delete Error:', error);
     }
+  }
 
-    async sendText(jid, str) {
-        await this.sock.sendMessage(jid, { text: str })
+  async sendText(jid, text) {
+    if(this.sock) {
+      await this.sock.sendMessage(jid, { text });
     }
+  }
 }
