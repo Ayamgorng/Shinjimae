@@ -1,57 +1,131 @@
 <!DOCTYPE html>
-<html>
+<html lang="id">
 <head>
+    <meta charset="UTF-8">
     <title>Shinjimae Bot Control</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .config-box { border: 1px solid #ccc; padding: 20px; margin: 20px 0; }
-        input[type="number"] { width: 100px; padding: 5px; }
-        button { background: #4CAF50; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f0f2f5;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .card p {
+            font-size: 16px;
+        }
+
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .btn-link {
+            display: inline-block;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
+
     <h1>Shinjimae Bot Control Panel</h1>
-    <p id="status">Status: Connecting...</p>
-    <p id="count">Deleted Messages: 0</p>
-    
-    <div class="config-box">
-        <h2>Auto Delete Configuration</h2>
-        <p>Current Interval: <span id="currentInterval">5</span> minutes</p>
+
+    <div class="card">
+        <h2>Status</h2>
+        <p id="status">Memuat status...</p>
+        <p id="count">Deleted Messages: 0</p>
+        <div id="qrLink" class="btn-link"></div>
+    </div>
+
+    <div class="card">
+        <h2>Auto Delete Interval</h2>
+        <p>Current: <span id="currentInterval">-</span> minutes</p>
         <input type="number" id="intervalInput" min="1" max="60" value="5">
-        <button onclick="updateInterval()">Update Interval</button>
+        <button onclick="updateInterval()">Update</button>
     </div>
 
     <script>
-        function updateUI(data) {
-            document.getElementById('status').textContent = 
-                `Status: ${data.whatsapp} | Interval: ${data.interval} minutes`;
-            document.getElementById('count').textContent = 
-                `Deleted Messages: ${data.count}`;
-            document.getElementById('currentInterval').textContent = data.interval;
-        }
-
-        async function fetchData() {
+        async function fetchStatus() {
             try {
-                const res = await fetch('/status');
-                const data = await res.json();
-                updateUI(data);
-            } catch (error) {
-                console.error('Error:', error);
+                const [statusRes, countRes] = await Promise.all([
+                    fetch('/status'),
+                    fetch('/count')
+                ]);
+
+                const statusData = await statusRes.json();
+                const countData = await countRes.json();
+
+                document.getElementById('status').textContent =
+                    `WhatsApp Status: ${statusData.whatsapp}`;
+                document.getElementById('count').textContent =
+                    `Deleted Messages: ${countData.count}`;
+                document.getElementById('currentInterval').textContent =
+                    statusData.interval;
+
+                if (statusData.whatsapp !== "Open") {
+                    document.getElementById('qrLink').innerHTML =
+                        `<a href="/qr" target="_blank"><button>Lihat QR / Pairing Code</button></a>`;
+                } else {
+                    document.getElementById('qrLink').innerHTML = '';
+                }
+
+            } catch (err) {
+                document.getElementById('status').textContent = 'Gagal mengambil status.';
             }
-            setTimeout(fetchData, 2000);
+
+            setTimeout(fetchStatus, 5000);
         }
 
         async function updateInterval() {
-            const minutes = document.getElementById('intervalInput').value;
-            const response = await fetch('/config/interval', {
+            const minutes = parseInt(document.getElementById('intervalInput').value);
+            if (isNaN(minutes) || minutes < 1 || minutes > 60) {
+                alert("Interval harus di antara 1 sampai 60 menit.");
+                return;
+            }
+
+            const res = await fetch('/config/interval', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ minutes })
             });
-            alert(response.ok ? 'Interval updated!' : 'Error updating interval');
+
+            if (res.ok) {
+                alert('Interval berhasil diperbarui.');
+                fetchStatus();
+            } else {
+                alert('Gagal memperbarui interval.');
+            }
         }
 
-        fetchData();
+        fetchStatus();
     </script>
 </body>
 </html>
