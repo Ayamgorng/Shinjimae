@@ -1,4 +1,4 @@
-import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
+import { makeWASocket, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import MAIN_LOGGER from 'pino';
 import { writeLog, newline, readCount, writeCount } from "../log/index.js";
 import moment from "moment";
