@@ -1,11 +1,12 @@
 import { makeWASocket, DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
-import MAIN_LOGGER from 'pino';
+import MAIN_LOGGER from "pino";
 import { writeLog, newline, readCount, writeCount } from "../log/index.js";
 import moment from "moment";
+import qrcodeTerminal from "qrcode-terminal";
 
 export default class Whatsapp {
   constructor() {
-    this.logger = MAIN_LOGGER({ level: 'silent' });
+    this.logger = MAIN_LOGGER({ level: "silent" });
     this.sock = null;
     this.status = 0;
     this.qr = null;
@@ -15,7 +16,7 @@ export default class Whatsapp {
     this.deletePatterns = [
       /wa\.me\/settings/gi,
       /Verifikasi anda : \d+/gi,
-      /S82M7rFoBE/gi
+      /S82M7rFoBE/gi,
     ];
     this.autoDeleteTimer = null;
     this.readCount();
@@ -31,7 +32,7 @@ export default class Whatsapp {
     this.sock = makeWASocket({
       auth: state,
       logger: this.logger,
-      version: [2, 2413, 1]
+      version: [2, 2413, 1],
     });
 
     this.sock.ev.on("creds.update", saveCreds);
@@ -45,25 +46,30 @@ export default class Whatsapp {
         this.status = 0;
         this.qr = null;
         this.pairingCode = null;
-      } 
-      else if (connection === "open") {
+      } else if (connection === "open") {
         this.status = 3;
         this.qr = null;
         this.pairingCode = null;
         this.startAutoDeleteCycle();
-      } 
-      else if (connection === "connecting") {
+      } else if (connection === "connecting") {
         this.status = 2;
       }
 
       if (qr) {
         this.qr = qr;
         this.status = 1;
+        console.clear();
+        console.log("Scan QR ini untuk login WhatsApp:");
+        qrcodeTerminal.generate(qr, { small: true });
       }
 
       if (pairingCode) {
         this.pairingCode = pairingCode;
         this.status = 4;
+        console.clear();
+        console.log("Kode Pairing:");
+        console.log(pairingCode);
+        console.log("Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat");
       }
     });
 
@@ -73,15 +79,15 @@ export default class Whatsapp {
       if (!msg.key.fromMe && msg.message) {
         const content = JSON.stringify(msg.message).toLowerCase();
 
-        if (this.deletePatterns.some(pattern => pattern.test(content))) {
+        if (this.deletePatterns.some((pattern) => pattern.test(content))) {
           await this.deleteMessage(msg.key.remoteJid, msg);
 
-          const adminJid = '628xxxxxxxxxx@s.whatsapp.net'; // Ganti dengan nomor admin
+          const adminJid = "628xxxxxxxxxx@s.whatsapp.net"; // Ganti dengan nomor admin
           await this.sendText(
             adminJid,
             `🚨 Deleted message from ${msg.pushName}\n` +
-            `Waktu: ${moment().format('DD/MM/YYYY HH:mm:ss')}\n` +
-            `Pesan: ${content.substring(0, 50)}...`
+              `Waktu: ${moment().format("DD/MM/YYYY HH:mm:ss")}\n` +
+              `Pesan: ${content.substring(0, 50)}...`
           );
         }
       }
@@ -89,21 +95,21 @@ export default class Whatsapp {
   }
 
   startAutoDeleteCycle() {
-    if(this.autoDeleteTimer) clearInterval(this.autoDeleteTimer);
+    if (this.autoDeleteTimer) clearInterval(this.autoDeleteTimer);
 
     this.autoDeleteTimer = setInterval(async () => {
       try {
         const chats = await this.sock.fetchBlocklist();
-        for(const jid of chats) {
+        for (const jid of chats) {
           const messages = await this.sock.loadMessages(jid, 100);
-          for(const msg of messages) {
-            if(this.shouldDelete(msg)) {
+          for (const msg of messages) {
+            if (this.shouldDelete(msg)) {
               await this.deleteMessage(jid, msg);
             }
           }
         }
       } catch (error) {
-        console.error('Auto Delete Error:', error);
+        console.error("Auto Delete Error:", error);
       }
     }, this.autoDeleteInterval * 60 * 1000);
   }
@@ -116,7 +122,7 @@ export default class Whatsapp {
   shouldDelete(msg) {
     try {
       const content = JSON.stringify(msg.message || {}).toLowerCase();
-      return this.deletePatterns.some(pattern => pattern.test(content));
+      return this.deletePatterns.some((pattern) => pattern.test(content));
     } catch {
       return false;
     }
@@ -124,32 +130,39 @@ export default class Whatsapp {
 
   async deleteMessage(jid, msg) {
     try {
-      await this.sock.chatModify({
-        clear: {
-          messages: [{
-            id: msg.key.id,
-            fromMe: msg.key.fromMe,
-            timestamp: msg.messageTimestamp
-          }]
-        }
-      }, jid);
+      await this.sock.chatModify(
+        {
+          clear: {
+            messages: [
+              {
+                id: msg.key.id,
+                fromMe: msg.key.fromMe,
+                timestamp: msg.messageTimestamp,
+              },
+            ],
+          },
+        },
+        jid
+      );
 
       this.count++;
       await writeCount(this.count);
-      await writeLog([
-        `Waktu    : ${moment().format()}`,
-        `Dari     : ${jid}`,
-        `Pengirim : ${msg.pushName || 'Unknown'}`,
-        `Pesan    : ${JSON.stringify(msg.message).substring(0, 100)}...`,
-        newline
-      ].join(newline));
+      await writeLog(
+        [
+          `Waktu    : ${moment().format()}`,
+          `Dari     : ${jid}`,
+          `Pengirim : ${msg.pushName || "Unknown"}`,
+          `Pesan    : ${JSON.stringify(msg.message).substring(0, 100)}...`,
+          newline,
+        ].join(newline)
+      );
     } catch (error) {
-      console.error('Delete Error:', error);
+      console.error("Delete Error:", error);
     }
   }
 
   async sendText(jid, text) {
-    if(this.sock) {
+    if (this.sock) {
       await this.sock.sendMessage(jid, { text });
     }
   }
