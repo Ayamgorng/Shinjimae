@@ -92,6 +92,15 @@ ServerInterface.server.get("/qr", async (req, res) => {
   }
 });
 
+// QR TEXT ENDPOINT (baru)
+ServerInterface.server.get("/qr/text", (req, res) => {
+  if (WhatsappInterface.status === 1 && WhatsappInterface.qr) {
+    res.json({ status: "OK", qr: WhatsappInterface.qr });
+  } else {
+    res.json({ status: "WAITING", message: "QR belum tersedia" });
+  }
+});
+
 // SET INTERVAL
 ServerInterface.server.post("/config/interval", (req, res) => {
   const minutes = parseInt(req.body.minutes);
