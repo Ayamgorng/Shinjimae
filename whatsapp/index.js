@@ -58,18 +58,24 @@ export default class Whatsapp {
       if (qr) {
         this.qr = qr;
         this.status = 1;
-        console.clear();
-        console.log("Scan QR ini untuk login WhatsApp:");
-        qrcodeTerminal.generate(qr, { small: true });
+
+        if (!process.env.DYNO) {
+          console.clear();
+          console.log("Scan QR ini untuk login WhatsApp:");
+          qrcodeTerminal.generate(qr, { small: true });
+        }
       }
 
       if (pairingCode) {
         this.pairingCode = pairingCode;
         this.status = 4;
-        console.clear();
-        console.log("Kode Pairing:");
-        console.log(pairingCode);
-        console.log("Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat");
+
+        if (!process.env.DYNO) {
+          console.clear();
+          console.log("Kode Pairing:");
+          console.log(pairingCode);
+          console.log("Buka WhatsApp > Perangkat Tertaut > Tautkan Perangkat");
+        }
       }
     });
 
