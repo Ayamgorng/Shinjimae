@@ -1,3 +1,4 @@
+import express from "express"; // FIX: Heroku crash karena ini belum diimport
 import Server from "./server/index.js";
 import Whatsapp from "./whatsapp/index.js";
 import QRCode from "qrcode";
@@ -70,26 +71,23 @@ ServerInterface.server.get("/", (req, res) => {
     res.send(html);
   }
 });
-// ... endpoint lainnya tetap sama ...
 
 ServerInterface.server.get("/count", async(req, res) => {
     let struct = {
         status: "OK",
         count: WhatsappInterface.count
     }
-
-    res.send(JSON.stringify(struct))
+    res.send(JSON.stringify(struct));
 });
 
 ServerInterface.server.get("/log", async(req, res) => {
-    let logFile = "./cache_log/log.txt"
-    let c = await check(logFile)
+    let logFile = "./cache_log/log.txt";
+    let c = await check(logFile);
     if(!c){
-        res.status(500).send("Log File not Exists")
+        res.status(500).send("Log File not Exists");
+    } else {
+        let read = fs.readFileSync(logFile);
+        read = Buffer.from(read).toString("utf-8");
+        res.status(200).send("<pre>"+read+"</pre>");
     }
-    else{
-        let read = fs.readFileSync(logFile)
-        read = Buffer.from(read).toString("utf-8")
-        res.status(200).send("<pre>"+read+"</pre>")
-    }
-})
+});
