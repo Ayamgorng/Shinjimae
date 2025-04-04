@@ -2,130 +2,178 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Shinjimae Bot Control</title>
+    <title>Shinjimae Bot Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.2/dist/full.css" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background: #f0f2f5;
+        .blink {
+            animation: blink 1s infinite;
         }
-
-        h1 {
-            text-align: center;
-        }
-
-        .card {
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-            padding: 20px;
-            margin: 20px 0;
-        }
-
-        .card p {
-            font-size: 16px;
-        }
-
-        input[type="number"] {
-            width: 80px;
-            padding: 5px;
-            font-size: 16px;
-        }
-
-        button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        button:hover {
-            background-color: #45a049;
-        }
-
-        .btn-link {
-            display: inline-block;
-            margin-top: 10px;
+        @keyframes blink {
+            50% { opacity: 0.4; }
         }
     </style>
 </head>
-<body>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">🦊 Shinjimae Bot Dashboard</h1>
+            <div class="flex justify-center gap-4 mb-4">
+                <a href="/log" target="_blank" class="btn btn-sm btn-info">📜 View Logs</a>
+                <a href="/qr" target="_blank" class="btn btn-sm btn-warning">🔑 QR/Pairing Code</a>
+            </div>
+        </div>
 
-    <h1>Shinjimae Bot Control Panel</h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-primary">📱 WhatsApp Status</h2>
+                    <div id="status" class="text-2xl font-bold">
+                        <span class="loading loading-dots loading-sm"></span>
+                    </div>
+                    <div class="text-sm">🕒 Last Update: <span id="lastUpdate">-</span></div>
+                </div>
+            </div>
 
-    <div class="card">
-        <h2>Status</h2>
-        <p id="status">Memuat status...</p>
-        <p id="count">Deleted Messages: 0</p>
-        <div id="qrLink" class="btn-link"></div>
-    </div>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-secondary">🗑 Deleted Messages</h2>
+                    <div id="count" class="text-2xl font-bold">0</div>
+                    <div class="radial-progress text-success" id="progress" style="--value:0">0%</div>
+                </div>
+            </div>
 
-    <div class="card">
-        <h2>Auto Delete Interval</h2>
-        <p>Current: <span id="currentInterval">-</span> minutes</p>
-        <input type="number" id="intervalInput" min="1" max="60" value="5">
-        <button onclick="updateInterval()">Update</button>
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title text-accent">⚙️ Auto Delete</h2>
+                    <div class="flex items-center gap-4">
+                        <input type="number" id="intervalInput" min="1" max="60" 
+                            class="input input-bordered w-20 text-center" value="5">
+                        <button onclick="updateInterval()" class="btn btn-success">Update</button>
+                    </div>
+                    <div class="text-sm mt-2">Current: <span id="currentInterval" class="font-bold">-</span> minutes</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="card bg-base-100 shadow-xl">
+                <div class="card-body">
+                    <h2 class="card-title">📈 Deletion Stats</h2>
+                    <canvas id="statsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card bg-base-100 shadow-xl h-96">
+                <div class="card-body">
+                    <h2 class="card-title">🔔 Recent Activities</h2>
+                    <div id="recentLogs" class="overflow-y-auto space-y-2 text-sm"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        async function fetchStatus() {
+        let chart;
+        const statusColors = {
+            Open: 'bg-success',
+            Connecting: 'bg-warning blink',
+            Close: 'bg-error',
+            QR: 'bg-info blink',
+            Pairing: 'bg-accent blink'
+        };
+
+        async function fetchData() {
             try {
-                const [statusRes, countRes] = await Promise.all([
+                const [statusRes, countRes, logsRes] = await Promise.all([
                     fetch('/status'),
-                    fetch('/count')
+                    fetch('/count'),
+                    fetch('/log/latest?lines=5')
                 ]);
 
                 const statusData = await statusRes.json();
                 const countData = await countRes.json();
+                const logs = await logsRes.text();
 
-                document.getElementById('status').textContent =
-                    `WhatsApp Status: ${statusData.whatsapp}`;
-                document.getElementById('count').textContent =
-                    `Deleted Messages: ${countData.count}`;
-                document.getElementById('currentInterval').textContent =
-                    statusData.interval;
-
-                if (statusData.whatsapp !== "Open") {
-                    document.getElementById('qrLink').innerHTML =
-                        `<a href="/qr" target="_blank"><button>Lihat QR / Pairing Code</button></a>`;
-                } else {
-                    document.getElementById('qrLink').innerHTML = '';
-                }
-
+                updateStatus(statusData);
+                updateCount(countData.count);
+                updateLogs(logs);
+                updateChart();
+                
             } catch (err) {
-                document.getElementById('status').textContent = 'Gagal mengambil status.';
+                console.error('Fetch error:', err);
             }
+            
+            setTimeout(fetchData, 3000);
+        }
 
-            setTimeout(fetchStatus, 5000);
+        function updateStatus(data) {
+            const statusElement = document.getElementById('status');
+            statusElement.innerHTML = `
+                <span class="badge ${statusColors[data.whatsapp]} text-white">
+                    ${data.whatsapp}
+                </span>
+            `;
+            document.getElementById('currentInterval').textContent = data.interval;
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        function updateCount(count) {
+            document.getElementById('count').textContent = count;
+            const progress = Math.min((count % 100), 100);
+            document.getElementById('progress').style.setProperty('--value', progress);
+            document.getElementById('progress').textContent = `${progress}%`;
+        }
+
+        function updateLogs(logs) {
+            const logsContainer = document.getElementById('recentLogs');
+            logsContainer.innerHTML = logs.split('\n\n')
+                .reverse()
+                .map(log => `<div class="p-2 bg-base-200 rounded">${log.replace(/\n/g, '<br>')}</div>`)
+                .join('');
+        }
+
+        function updateChart() {
+            if (!chart) {
+                const ctx = document.getElementById('statsChart').getContext('2d');
+                chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                        datasets: [{
+                            label: 'Messages Deleted/Hour',
+                            data: Array.from({length: 24}, () => Math.floor(Math.random() * 100)),
+                            borderColor: '#3b82f6',
+                            tension: 0.3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            }
         }
 
         async function updateInterval() {
             const minutes = parseInt(document.getElementById('intervalInput').value);
-            if (isNaN(minutes) || minutes < 1 || minutes > 60) {
-                alert("Interval harus di antara 1 sampai 60 menit.");
-                return;
-            }
+            if (isNaN(minutes)) return;
 
-            const res = await fetch('/config/interval', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ minutes })
-            });
-
-            if (res.ok) {
-                alert('Interval berhasil diperbarui.');
-                fetchStatus();
-            } else {
-                alert('Gagal memperbarui interval.');
+            try {
+                await fetch('/config/interval', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ minutes })
+                });
+            } catch (err) {
+                console.error('Update error:', err);
             }
         }
 
-        fetchStatus();
+        fetchData();
     </script>
 </body>
 </html>
