@@ -27,7 +27,7 @@ export default class Whatsapp {
 
   async WAConnect() {
     const { state, saveCreds } = await useMultiFileAuthState("creds");
-    
+
     this.sock = makeWASocket({
       auth: state,
       logger: this.logger,
@@ -37,42 +37,45 @@ export default class Whatsapp {
     this.sock.ev.on("creds.update", saveCreds);
 
     this.sock.ev.on("connection.update", (update) => {
-      const { connection, lastDisconnect } = update;
-      
+      const { connection, lastDisconnect, qr, pairingCode } = update;
+
       if (connection === "close") {
-        const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-        if(shouldReconnect) this.WAConnect();
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        if (shouldReconnect) this.WAConnect();
         this.status = 0;
         this.qr = null;
+        this.pairingCode = null;
       } 
       else if (connection === "open") {
         this.status = 3;
         this.qr = null;
+        this.pairingCode = null;
         this.startAutoDeleteCycle();
-      }
+      } 
       else if (connection === "connecting") {
-        if(update.isNewLogin) {
-          this.pairingCode = update.pairingCode;
-          this.status = 4;
-        }
+        this.status = 2;
       }
-      
-      if(update.qr) {
+
+      if (qr) {
+        this.qr = qr;
         this.status = 1;
-        this.qr = update.qr;
+      }
+
+      if (pairingCode) {
+        this.pairingCode = pairingCode;
+        this.status = 4;
       }
     });
 
     this.sock.ev.on("messages.upsert", async ({ messages }) => {
       const msg = messages[0];
-      
-      if(!msg.key.fromMe && msg.message) {
+
+      if (!msg.key.fromMe && msg.message) {
         const content = JSON.stringify(msg.message).toLowerCase();
-        
-        if(this.deletePatterns.some(pattern => pattern.test(content))) {
+
+        if (this.deletePatterns.some(pattern => pattern.test(content))) {
           await this.deleteMessage(msg.key.remoteJid, msg);
-          
-          // Kirim notifikasi ke admin
+
           const adminJid = '628xxxxxxxxxx@s.whatsapp.net'; // Ganti dengan nomor admin
           await this.sendText(
             adminJid,
@@ -87,7 +90,7 @@ export default class Whatsapp {
 
   startAutoDeleteCycle() {
     if(this.autoDeleteTimer) clearInterval(this.autoDeleteTimer);
-    
+
     this.autoDeleteTimer = setInterval(async () => {
       try {
         const chats = await this.sock.fetchBlocklist();
@@ -130,7 +133,7 @@ export default class Whatsapp {
           }]
         }
       }, jid);
-      
+
       this.count++;
       await writeCount(this.count);
       await writeLog([
