@@ -2,67 +2,74 @@ import Server from "./server/index.js"
 import Whatsapp from "./whatsapp/index.js"
 import QRCode from "qrcode"
 import fs from "fs"
-import {check} from "./log/index.js"
+import { check } from "./log/index.js"
+import readline from 'readline'
+import { startPaymentScheduler } from './jobs/paymentScheduler.js'
 
-// Default server port is 8080
-const port = 8080
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+})
 
-const ServerInterface = new Server(port)
-const WhatsappInterface = new Whatsapp()
-WhatsappInterface.WAConnect()
+const port = process.env.PORT || 8080
 
-ServerInterface.server.get("/status", (req,res) => {
+rl.question('Masukkan Nomor WhatsApp (contoh: 628123456789): ', (number) => {
+  const WhatsappInterface = new Whatsapp(number)
+  WhatsappInterface.WAConnect()
+  startServer(WhatsappInterface)
+  startPaymentScheduler()
+})
+
+function startServer(WhatsappInterface) {
+  const ServerInterface = new Server(port, WhatsappInterface)
+
+  ServerInterface.app.get("/status", (req, res) => {
     let data = {
-        status: "OK",
-        whatsapp: WhatsappInterface.status == 0 ? "Close" : WhatsappInterface.status == 1 ? "QR" : WhatsappInterface.status == 2 ? "Connecting" : "Open"
+      status: "OK",
+      whatsapp: WhatsappInterface.status == 0 ? "Close" : 
+               WhatsappInterface.status == 1 ? "QR" : 
+               WhatsappInterface.status == 2 ? "Connecting" : "Open"
     }
     res.send(JSON.stringify(data))
-})
+  })
 
-ServerInterface.server.get("/qr", async (req,res) => {
+  ServerInterface.app.get("/qr", async (req, res) => {
     let isQR = WhatsappInterface.qr ? true : false
-    if(isQR) {
-        let dataurl = await QRCode.toDataURL(WhatsappInterface.qr)
-        res.send("<head> <meta http-equiv=\"refresh\" content=\"3\"> </head><img src=\""+dataurl+"\" width=\"30%\">")
+    if (isQR) {
+      let dataurl = await QRCode.toDataURL(WhatsappInterface.qr)
+      res.send(`<head><meta http-equiv="refresh" content="3"></head>
+               <img src="${dataurl}" width="30%">`)
+    } else if (WhatsappInterface.status == 2) {
+      res.send('<head><meta http-equiv="refresh" content="3"></head>Connecting')
+    } else {
+      res.send('<script>document.location.href = "/"</script>')
     }
-    else if (WhatsappInterface.status == 2){
-        res.send("<head> <meta http-equiv=\"refresh\" content=\"3\"> </head>Connecting")
-    }
-    else{
-        res.send("<script type='text/javascript'>document.location.href = '/'</script>")
-    }
-})
+  })
 
-ServerInterface.server.get("/", async (req, res) => {
-    if(WhatsappInterface.status !== 3){
-        res.redirect(302, "./qr")
+  ServerInterface.app.get("/", async (req, res) => {
+    if (WhatsappInterface.status !== 3) {
+      res.redirect(302, "./qr")
+    } else {
+      let html = fs.readFileSync("./public/index.html")
+      res.send(html.toString())
     }
-    else{
-        let html = fs.readFileSync("./public/index.html")
-        html = Buffer.from(html).toString("utf-8")
+  })
 
-        res.send(html)
-    }
-})
+  ServerInterface.app.get("/count", (req, res) => {
+    res.send(JSON.stringify({
+      status: "OK",
+      count: WhatsappInterface.count
+    }))
+  })
 
-ServerInterface.server.get("/count", async(req, res) => {
-    let struct = {
-        status: "OK",
-        count: WhatsappInterface.count
-    }
-
-    res.send(JSON.stringify(struct))
-})
-
-ServerInterface.server.get("/log", async(req, res) => {
+  ServerInterface.app.get("/log", async (req, res) => {
     let logFile = "./cache_log/log.txt"
     let c = await check(logFile)
-    if(!c){
-        res.status(500).send("Log File not Exists")
+    if (!c) {
+      res.status(500).send("Log File not Exists")
+    } else {
+      let read = fs.readFileSync(logFile)
+      res.status(200).send(`<pre>${read.toString()}</pre>`)
     }
-    else{
-        let read = fs.readFileSync(logFile)
-        read = Buffer.from(read).toString("utf-8")
-        res.status(200).send("<pre>"+read+"</pre>")
-    }
-})
+  })
+}
