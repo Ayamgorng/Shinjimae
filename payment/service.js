@@ -1,8 +1,8 @@
 import { Low } from 'lowdb'
 import { JSONFile } from 'lowdb/node'
-import { DanaPayment } from './providers/dana.js'
-import { GopayPayment } from './providers/gopay.js'
-import { ShopeePayPayment } from './providers/shopeepay.js'
+import { DanaPayment } from '../providers/dana.js'
+import { GopayPayment } from '../providers/gopay.js'
+import { ShopeePayPayment } from '../providers/shopeepay.js'
 import { v4 as uuidv4 } from 'uuid'
 
 const adapter = new JSONFile('db/payments.json')
