@@ -20,6 +20,40 @@ async function checkPaymentStatus(orderId, method) {
   }
 }
 
+// server/index.js
+// Callback DANA
+this.app.post('/payment/dana/callback', async (req, res) => {
+  try {
+    const { orderId, status } = req.body
+    await this.handlePaymentStatus(orderId, status, 'DANA')
+    res.status(200).send('OK')
+  } catch (error) {
+    res.status(500).send('Error')
+  }
+})
+
+// Callback GoPay
+this.app.post('/payment/gopay/callback', async (req, res) => {
+  try {
+    const { external_id, status } = req.body
+    await this.handlePaymentStatus(external_id, status, 'GOPAY')
+    res.status(200).send('OK')
+  } catch (error) {
+    res.status(500).send('Error')
+  }
+})
+
+// Callback ShopeePay
+this.app.post('/payment/shopeepay/callback', async (req, res) => {
+  try {
+    const { merchant_trade_no, status } = req.body
+    await this.handlePaymentStatus(merchant_trade_no, status, 'SHOPEEPAY')
+    res.status(200).send('OK')
+  } catch (error) {
+    res.status(500).send('Error')
+  }
+})
+
 // Contoh implementasi di DANA
 // payment/dana.js
 async checkStatus(orderId) {
