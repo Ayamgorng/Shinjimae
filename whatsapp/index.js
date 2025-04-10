@@ -1,7 +1,8 @@
+// ...import tetap
 import makeWASocket, { DisconnectReason, useMultiFileAuthState } from "@whiskeysockets/baileys";
 import MAIN_LOGGER from "pino";
 import fs from "fs";
-import qrcode from "qrcode-terminal"; // <-- Tambahan
+import qrcode from "qrcode-terminal";
 import { writeLog, newline, readCount, writeCount } from "../log/index.js";
 
 export default class Whatsapp {
@@ -30,7 +31,7 @@ export default class Whatsapp {
     this.count = await readCount();
   }
 
-  async WAConnect() {
+  async WAConnect(phoneNumber = null) {
     const { state, saveCreds } = await useMultiFileAuthState("creds");
     this.sock = makeWASocket.default({
       auth: state,
@@ -39,13 +40,13 @@ export default class Whatsapp {
 
     this.sock.ev.on("creds.update", saveCreds);
 
-    this.sock.ev.on("connection.update", (update) => {
+    this.sock.ev.on("connection.update", async (update) => {
       const { connection, lastDisconnect } = update;
 
       if (connection === "close") {
         const reconnect = lastDisconnect?.error?.output?.payload?.statusCode !== DisconnectReason.loggedOut;
         if (reconnect) {
-          this.WAConnect();
+          this.WAConnect(phoneNumber);
         }
         this.status = 0;
         this.qr = null;
@@ -73,6 +74,16 @@ export default class Whatsapp {
           console.log("\n[!] Pairing Code tersedia. Silakan input di WhatsApp:");
           console.log("Pairing Code:", update.pairingCode);
 
+          // Kirim pairing code ke nomor jika diberikan
+          if (phoneNumber) {
+            try {
+              await this.sendText(`${phoneNumber}@s.whatsapp.net`, `Kode Pairing Anda:\n\n${update.pairingCode}\n\nGunakan kode ini di WhatsApp Anda.`);
+              console.log("[✓] Pairing code berhasil dikirim ke " + phoneNumber);
+            } catch (e) {
+              console.log("[X] Gagal mengirim pairing code:", e.message);
+            }
+          }
+
         } else {
           this.status = 3;
           this.qr = null;
@@ -85,7 +96,7 @@ export default class Whatsapp {
       let msgObj = m.messages[0];
       let isRevoked = msgObj.hasOwnProperty("message")
         ? msgObj.message.hasOwnProperty("protocolMessage")
-          : false;
+        : false;
 
       if (!msgObj.key.fromMe && !isRevoked) {
         let isMessage = msgObj.hasOwnProperty("message");
