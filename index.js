@@ -5,7 +5,9 @@ import QRCode from "qrcode";
 import fs from "fs";
 import { check } from "./log/index.js";
 
-const port = 8080; // Port server
+//const port = 8080; // Port server untuk selain heroku
+// Gunakan port yang diberikan oleh Heroku atau default ke 8080 (misalnya untuk lokal)
+const port = process.env.PORT || 8080;
 
 // Inisialisasi server dan Whatsapp
 const ServerInterface = new Server(port);
