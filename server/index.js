@@ -1,6 +1,6 @@
 import express from 'express'
-import { login, register } from '../auth/index.js'
-import { authMiddleware, adminMiddleware } from '../middleware/admin.js'
+import { login, register } from './auth/index.js'
+import { authMiddleware, adminMiddleware } from './middleware/admin.js'
 import { handleDanaWebhook, handleGopayWebhook } from './webhooks.js'
 
 export default class Server {

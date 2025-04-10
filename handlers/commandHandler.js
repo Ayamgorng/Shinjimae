@@ -1,4 +1,4 @@
-import { PaymentService } from '../payment/service.js'
+import { PaymentService } from './payment/service.js'
 
 export async function handleCommand(text, user, sock) {
   const [cmd, ...args] = text.slice(1).split(' ')
