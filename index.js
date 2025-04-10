@@ -5,10 +5,17 @@ import QRCode from "qrcode";
 import fs from "fs";
 import { check } from "./log/index.js";
 
-const port = 8080; // Ubah jika diperlukan
+const port = 8080; // Port server
+
+// Inisialisasi server dan Whatsapp
 const ServerInterface = new Server(port);
 const WhatsappInterface = new Whatsapp();
 WhatsappInterface.WAConnect();
+
+// Menjadikan server mendengarkan pada 0.0.0.0 agar dapat diakses secara public
+ServerInterface.server.listen(port, "0.0.0.0", () => {
+  console.log(`Server berjalan dan dapat diakses secara public pada http://0.0.0.0:${port}`);
+});
 
 // Endpoint baru untuk konfigurasi auto delete
 const configFile = "./cache_log/config.json";
