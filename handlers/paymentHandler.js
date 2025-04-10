@@ -1,6 +1,6 @@
 // handlers/paymentHandler.js
-import { PaymentService } from '../payment/service.js'
-import { formatCurrency } from '../utils/helpers.js'
+import { PaymentService } from './payment/service.js'
+import { formatCurrency } from './utils/helpers.js'
 
 export async function handlePaymentCommand(message, user, sock) {
   const args = message.split(' ')
