@@ -1,7 +1,7 @@
 // auth/index.js
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
-import db from '../database/index.js'
+import db from './database/index.js'
 
 const SECRET = process.env.JWT_SECRET || 'your_jwt_secret'
 
