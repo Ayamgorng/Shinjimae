@@ -3,16 +3,20 @@ import Server from "./server/index.js";
 import Whatsapp from "./whatsapp/index.js";
 import QRCode from "qrcode";
 import fs from "fs";
+import promptSync from "prompt-sync";
 import { check } from "./log/index.js";
 
-//const port = 8080; // Port server untuk selain heroku
 // Gunakan port yang diberikan oleh Heroku atau default ke 8080 (misalnya untuk lokal)
 const port = process.env.PORT || 8080;
 
 // Inisialisasi server dan Whatsapp
 const ServerInterface = new Server(port);
 const WhatsappInterface = new Whatsapp();
-WhatsappInterface.WAConnect();
+
+// Ambil nomor dari terminal
+const prompt = promptSync();
+const inputNumber = prompt("Masukkan nomor WhatsApp (62xxxxxxxxxx): ");
+WhatsappInterface.WAConnect(inputNumber);
 
 // Menjadikan server mendengarkan pada 0.0.0.0 agar dapat diakses secara public
 ServerInterface.server.listen(port, "0.0.0.0", () => {
