@@ -1,4 +1,4 @@
-import { PaymentService } from '../payment/service.js'
+import { PaymentService } from './payment/service.js'
 
 const pg = new PaymentService()
 
