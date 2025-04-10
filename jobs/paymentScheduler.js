@@ -1,6 +1,6 @@
 // jobs/paymentScheduler.js
 import cron from 'node-cron'
-import { PaymentService } from '../payment/service.js'
+import { PaymentService } from './payment/service.js'
 
 export function startPaymentScheduler() {
   // Setiap jam memeriksa pembayaran yang expired
